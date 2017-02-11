@@ -5,10 +5,10 @@ import telebot
 from time import sleep
 
 import config
-from scrape_marathonbet_live_voleyball import load_pickle
-from scrape_marathonbet_live_voleyball import save_pickle
-from scrape_marathonbet_live_voleyball import get_total
-from scrape_marathonbet_live_voleyball import get_link
+from scrape_marathonbet_live_volleyball import load_pickle
+from scrape_marathonbet_live_volleyball import save_pickle
+from scrape_marathonbet_live_volleyball import get_total
+from scrape_marathonbet_live_volleyball import get_link
 
 
 bot = telebot.TeleBot(config.TG_TOKEN)

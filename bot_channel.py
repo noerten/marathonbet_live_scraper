@@ -6,7 +6,7 @@ import telebot
 from time import sleep
 
 import config
-from scrape_marathonbet_live_voleyball import marathon
+from scrape_marathonbet_live_volleyball import marathon
 
 
 bot = telebot.TeleBot(config.TG_TOKEN)
@@ -28,9 +28,7 @@ def run_bot():
 
 
 if __name__ == '__main__':
-    # Избавляемся от спама в логах от библиотеки requests
     logging.getLogger('requests').setLevel(logging.CRITICAL)
-    # Настраиваем наш логгер
     logging.basicConfig(format='[%(asctime)s] %(filename)s:%(lineno)d %(levelname)s - %(message)s', level=logging.INFO,
                         filename='bot_log.log', datefmt='%d.%m.%Y %H:%M:%S')
     if not config.SINGLE_RUN:
@@ -39,11 +37,10 @@ if __name__ == '__main__':
             try:
                 run_bot()
                 mistake_counter = 0
-            except Exception as e:
+            except Exception:
                 mistake_counter += 1
-                mistake_info = ('[BOT] mistake_counter {}, '
-                                'error {}.'.format(mistake_counter, e))
-                logging.info(mistake_info)
+                logging.error('[BOT] mistake_counter {}'.format(mistake_counter))
+                logging.error(traceback.format_exc())
 
             print(time.strftime("%a, %d %b %Y %X", time.localtime()))
             logging.info('[BOT] Script went to sleep.')
@@ -56,11 +53,10 @@ if __name__ == '__main__':
             try:
                 run_bot()
                 break
-            except Exception as e:
+            except:
                 counter += 1
-                mistake_info = ('[BOT] mistake_counter {}, '
-                                'error {}.'.format(counter, e))
-                logging.info(mistake_info)
+                logging.error('[BOT] mistake_counter {}'.format(counter))
+                logging.error(traceback.format_exc())
                 time.sleep(random.uniform(15,25))
         if counter == 10:
             send_update('Случилось 10 ошибок подряд, что-то не так, '
