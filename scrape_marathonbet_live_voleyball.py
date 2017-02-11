@@ -1,6 +1,8 @@
 import datetime
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+import os
+import pickle
 import random
 import smtplib
 import sys
@@ -11,9 +13,34 @@ from bs4 import BeautifulSoup
 
 import config
 
+def load_pickle(filepath):
+    if not os.path.exists(filepath):
+        return None
+    with open(filepath, 'rb') as f:
+        return pickle.load(f)
 
-VOLLEYBALL_LINK = 'https://www.marathonbet.com/su/?sportLive=23690'
-TOTAL = 45.5
+
+def save_pickle(data, filepath):
+    with open(filepath, 'wb') as f:
+        pickle.dump(data, f)
+
+
+def get_total():
+    loaded_total = load_pickle(config.CUSTOM_TOTAL_PICKLE)
+    total = loaded_total if loaded_total is not None else config.DEFAULT_TOTAL
+    return total
+
+
+def get_link():
+    loaded_link = load_pickle(config.CUSTOM_LINK_PICKLE)
+    link = loaded_link if loaded_link is not None else config.DEFAULT_LINK
+    return link
+
+
+def get_match_timestamp():
+    loaded_dict = load_pickle(config.MATCH_TIMESTAMP_PICKLE)
+    match_timestamp = loaded_dict if loaded_dict is not None else {}
+    return match_timestamp
 
 
 def make_soup(html):
@@ -43,7 +70,7 @@ def get_all_matches_info(html):
     return all_matches_info
 
 
-def check_if_total_more(match_info):
+def check_if_total_more(match_info, total):
     set_list = match_info[1].split(' ',1)[1].strip('()').split(', ')
     if len(set_list) > 1:
         good_sets = 0
@@ -51,7 +78,7 @@ def check_if_total_more(match_info):
         for a_set in two_sets:
             a_set_total = sum([int(game) for game in a_set])
 
-            if a_set_total < TOTAL:
+            if a_set_total < total:
                 break
             else:
                 good_sets += 1
@@ -76,31 +103,39 @@ def send_simple_message(email_subject, email_text, msg_from=config.MSG_FROM,
         server.sendmail(msg_from, [msg_to], msg.as_string())
 
 
-def format_email_subject():
+def format_email_subject(total):
     sent_at = time.strftime("%a, %d %b %Y %X", time.localtime())
-    return "Воллейбол, матчи с тоталом > {}, отправлено {}".format(TOTAL,
+    return "Воллейбол, матчи с тоталом > {}, отправлено {}".format(total,
                                                                    sent_at)
 
 
-def format_email_text(matches_to_send):
+def format_email_text(matches_to_send, total, link):
     title_str = ('Матчи с тоталом каждого из'
-                 ' первых двух сетов больше {}\n'.format(TOTAL))
-
+                 ' первых двух сетов больше {}\n'.format(total))
     matches_str = "\n\n".join("\n".join(l) for l in matches_to_send)
-    return '\n'.join([title_str, VOLLEYBALL_LINK, matches_str]) 
+    return '\n'.join([title_str, link, matches_str]) 
     
 
-def main():
-    all_matches_info = get_all_matches_info(get_html(VOLLEYBALL_LINK))
+def marathon():
+    link = get_link()
+    total = get_total()
+    match_timestamp_dict = get_match_timestamp()
+    all_matches_info = get_all_matches_info(get_html(link))
     matches_to_send = []
     for match_info in all_matches_info:
-        if check_if_total_more(match_info):
+        match_title =  match_info[0]
+        if match_title in match_timestamp_dict:
+            if time.time() - match_timestamp_dict[match_title] > 4*60*60:
+                match_timestamp_dict.pop(match_title)
+            continue
+        elif check_if_total_more(match_info, total):
             matches_to_send.append(match_info)
-    print(matches_to_send)
-    email_text = format_email_text(matches_to_send)
-    email_subject = format_email_subject()
-    return email_subject, email_text
-            
+            match_timestamp_dict[match_info[0]] = time.time()
+    save_pickle(match_timestamp_dict, config.MATCH_TIMESTAMP_PICKLE)
+    if len(matches_to_send) > 0:
+        email_text = format_email_text(matches_to_send, total, link)
+        email_subject = format_email_subject(total)
+        return email_subject, email_text
 
 
 if __name__ == '__main__':
@@ -108,9 +143,11 @@ if __name__ == '__main__':
     counter = 0
     while counter < 10:
         try:
-            email_text, email_subject = main()
-            send_simple_message(email_text, email_subject)
-            print('message sent')
+            result = marathon()
+            if result:
+                email_text, email_subject = result
+                send_simple_message(email_text, email_subject)
+                print('message sent')
             break
         except Exception as e:
             print(e)
