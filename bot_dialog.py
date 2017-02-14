@@ -17,7 +17,8 @@ bot = telebot.TeleBot(config.TG_TOKEN)
 @bot.message_handler(commands=['start'])
 def start(message):
     reply = ('Возможные команды:\nчтобы установить новый тотал: /total,\n'
-             'чтобы указать новую ссылку на страницу волейбола: /link')
+             'чтобы указать новую ссылку на страницу волейбола: /link,\n'
+             'чтобы увидеть последнюю запись лога: /show_log')
     bot.send_message(message.chat.id, reply)
 
 
@@ -69,6 +70,21 @@ def set_link(message):
             bot.send_message(message.chat.id, message_text)
     except Exception as e:
         bot.send_message(message.chat.id, 'Что-то пошло не так. Начните сначала')
+
+
+@bot.message_handler(commands=['show_log'])
+def show_log(message):
+    log = get_last_line('bot_log.log').rstrip()
+    reply_text = ('Если время в логе (МСК) примерно соответствует текущему, '
+                  'все хорошо. Если нет, попробуйте перезапустить сервер и '
+                  'запустить бота (`start_bot.sh`)\n{}'.format(log))
+    reply = bot.send_message(message.chat.id, reply_text)
+
+
+def get_last_line(filepath):
+    with open(filepath, 'rb') as fh:
+        last = fh.readlines()[-1].decode()
+        return last
 
 
 if __name__ == '__main__':
