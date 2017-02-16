@@ -1,4 +1,3 @@
-import datetime
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 import logging
@@ -6,7 +5,6 @@ import os
 import pickle
 import random
 import smtplib
-import sys
 import time
 import traceback
 
@@ -14,6 +12,7 @@ import requests
 from bs4 import BeautifulSoup
 
 import config
+
 
 def load_pickle(filepath):
     if not os.path.exists(filepath):
@@ -54,7 +53,7 @@ def get_html(url):
 
 
 def check_if_total_more(match_info, total):
-    set_list = match_info[1].split(' ',1)[1].strip('()').split(', ')
+    set_list = match_info[1].split(' ', 1)[1].strip('()').split(', ')
     if len(set_list) > 1:
         good_sets = 0
         two_sets = [a_set.strip().split(':') for a_set in set_list[:2]]
@@ -69,20 +68,21 @@ def check_if_total_more(match_info, total):
 
 
 def send_simple_message(email_subject, email_text, msg_from=config.MSG_FROM,
-                        msg_to=config.MSG_TO, password = config.PASSWORD):
-    # in order to send from gmail acc you should turn on
-    # 'less secured apps support' here
-    # https://myaccount.google.com/security
-
+                        msg_to=config.MSG_TO, password=config.PASSWORD,
+                        smtp_server="smtp.gmail.com", smtp_port=587):
+    """in order to send from gmail acc you should turn on
+    'less secured apps support' here
+    https://myaccount.google.com/security
+    """
     msg = MIMEMultipart('utf-8')
     msg['Subject'] = email_subject
     msg['From'] = msg_from
     msg['To'] = msg_to
     msg.attach(MIMEText(email_text, 'plain'))
-    with smtplib.SMTP("smtp.gmail.com", 587) as server:
+    with smtplib.SMTP(smtp_server, smtp_port) as server:
         server.ehlo()
         server.starttls()
-        server.login(config.MSG_FROM, config.PASSWORD)
+        server.login(config.MSG_FROM, password)
         server.sendmail(msg_from, [msg_to], msg.as_string())
 
 
@@ -97,19 +97,17 @@ def format_email_text(matches_to_send, total, link):
                  ' первых двух сетов больше {}\n'.format(total))
     matches_str = "\n\n".join("\n".join(l) for l in matches_to_send)
     return '\n'.join([title_str, link, matches_str]) 
-    
-
 
 
 def get_all_matches_info(html):
     soup = make_soup(html)
-    if soup.find('a', class_='sport-category-label').get_text() !='Волейбол':
+    if soup.find('a', class_='sport-category-label').get_text() != 'Волейбол':
         return [['error', 'неверная ссылка']]
     cont = soup.find('div', id='liveCategoriesContainer')
     if cont is None:
         cont = soup.find('div', id='container_EVENTS')
         if cont is None:
-            return [['error', 'no container id=liveCategoriesContainer']]
+            return [['error', 'no container id=container_EVENTS']]
     all_matches_info = []
     tournament_conts = cont.find_all('div', class_='category-container')
     if tournament_conts is None:
@@ -126,9 +124,10 @@ def get_all_matches_info(html):
                                         class_='live-today-member-name')
             if len(names) == 0:
                 names = match_soup.find_all('div',
-                                        class_='live-member-name')
+                                            class_='live-member-name')
                 if len(names) == 0:
-                    return [['error', 'no match names class=live-[today-]member-name']]        
+                    return [['error',
+                             'no match names class=live-[today-]member-name']]
                     logging.error('class of names of commands has changed')
             teams = [names[0].get_text(), names[1].get_text()]
             teams = ' vs '.join(teams)
@@ -138,9 +137,10 @@ def get_all_matches_info(html):
             all_matches_info.append(match_info)
     return all_matches_info
 
-def update_match_timestamp_pickle(match_timestamp_dict):
+
+def update_match_timestamp_pickle(match_timestamp_dict, time_to_live=6*60*60):
     for item in list(match_timestamp_dict):
-        if time.time() - match_timestamp_dict[item] > 6*60*60:
+        if time.time() - match_timestamp_dict[item] > time_to_live:
             match_timestamp_dict.pop(item)
     save_pickle(match_timestamp_dict, config.MATCH_TIMESTAMP_PICKLE)
 
@@ -152,26 +152,25 @@ def marathon():
     counter = 0
     while counter < 10:
         all_matches_info = get_all_matches_info(get_html(link))
-        print(all_matches_info[0])
         if all_matches_info[0][0] != 'error':
             break
         else:
             counter += 1
-            logging.info(
-                'trying to get all match info again counter = {}'.format(
-                    counter))
+            logging.info('trying to get all match info again '
+                         'counter = {}'.format(counter))
             time.sleep(3)
     if all_matches_info[0][0] == 'error':
-        if (all_matches_info[0][0], all_matches_info[0][1],) in match_timestamp_dict:
+        error_tuple = (all_matches_info[0][0], all_matches_info[0][1],)
+        if error_tuple in match_timestamp_dict:
             update_match_timestamp_pickle(match_timestamp_dict)
             return None
         else:
-            match_timestamp_dict[(all_matches_info[0][0], all_matches_info[0][1],)] = time.time()
+            match_timestamp_dict[error_tuple] = time.time()
             update_match_timestamp_pickle(match_timestamp_dict)
             return all_matches_info[0]
     matches_to_send = []
     for match_info in all_matches_info:
-        match_title =  match_info[0]
+        match_title = match_info[0]
         if match_title in match_timestamp_dict:
             continue
         elif check_if_total_more(match_info, total):

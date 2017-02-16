@@ -5,8 +5,8 @@ Script scrapes marathonbet live volleyball [page](https://www.marathonbet.com/su
 
 ## Installation
 
-`pip3 install requirements.txt`, create `private_config.py` and define `TG_TOKEN`, `TG_CHANNEL_NAME` in it. Also see [here]() installation to VPS guide (in Russian).
+Install requirements `pip3 install requirements.txt`, create `private_config.py` and define `TG_TOKEN`, `TG_CHANNEL_NAME` in it. If you want to send emails, create `email_config.py` and define `MSG_FROM`, `PASSWORD`, `MSG_TO`. Also see [here]() installation to VPS guide (in Russian).
 
 ## Usage
 
-Either run from console `python3 scrape_marathonbet_live_volleyball.py` (you will need to create `email_config.py` with variables (their names are the same as in config.py) containg sender's email, recepient's email and sender's password) and get a single update to email or run both 'bot_channel.py' and 'bot_dialog.py' in order to get updates to telegram channel and be able to change values using bot.
+Either run from console `python3 scrape_marathonbet_live_volleyball.py` (you will need `email_config.py`) and get a single update to email or run both 'bot_channel.py' and 'bot_dialog.py' in order to get updates to telegram channel and to be able to change values using bot.
