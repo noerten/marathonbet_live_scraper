@@ -23,9 +23,9 @@ def run_bot():
     logging.info('[BOT] started scanning')
     result = marathon()
     if result:
-        info = result[1]
+        matches_info = result[1]
         logging.info('[BOT] got info from marathon module')
-        send_update(info)
+        send_update(matches_info)
         logging.info('[BOT] sent update')
     else:
         logging.info('[BOT] nothing changed')

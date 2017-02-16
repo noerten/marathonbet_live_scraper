@@ -53,29 +53,6 @@ def get_html(url):
     return requests.get(url).text
 
 
-def get_all_matches_info(html):
-    soup = make_soup(html)
-    cont = soup.find('div', id='liveCategoriesContainer')
-    all_matches_info = []
-    for tournament_cont in cont.find_all('div', class_='category-container'):
-        tournament_soup = tournament_cont.find('table', class_='foot-market')
-        for match_soup in tournament_soup.find_all('tbody', recursive=False):
-            names = match_soup.find_all('div',
-                                        class_='live-today-member-name')
-            if len(names) == 0:
-                names = match_soup.find_all('div',
-                                        class_='live-member-name')
-                if len(names) == 0:
-                    logging.error('class of names of commands has changed')
-            teams = [names[0].get_text(), names[1].get_text()]
-            teams = ' vs '.join(teams)
-            current = match_soup.find('div',
-                                      class_='cl-left red').get_text().strip()
-            match_info = [teams, current]
-            all_matches_info.append(match_info)
-    return all_matches_info
-
-
 def check_if_total_more(match_info, total):
     set_list = match_info[1].split(' ',1)[1].strip('()').split(', ')
     if len(set_list) > 1:
@@ -122,22 +99,85 @@ def format_email_text(matches_to_send, total, link):
     return '\n'.join([title_str, link, matches_str]) 
     
 
+
+
+def get_all_matches_info(html):
+    soup = make_soup(html)
+    if soup.find('a', class_='sport-category-label').get_text() !='Волейбол':
+        return [['error', 'неверная ссылка']]
+    cont = soup.find('div', id='liveCategoriesContainer')
+    if cont is None:
+        cont = soup.find('div', id='container_EVENTS')
+        if cont is None:
+            return [['error', 'no container id=liveCategoriesContainer']]
+    all_matches_info = []
+    tournament_conts = cont.find_all('div', class_='category-container')
+    if tournament_conts is None:
+        return [['error', 'no containers class_=category-container']]
+    for tournament_cont in tournament_conts:
+        tournament_soup = tournament_cont.find('table', class_='foot-market')
+        if tournament_soup is None:
+            return [['error', 'tournament_soup table, class=foot-market']] 
+        match_soups = tournament_soup.find_all('tbody', recursive=False)
+        if match_soups is None:
+            return [['error', 'no match_soups tag=tbody']]      
+        for match_soup in match_soups:
+            names = match_soup.find_all('div',
+                                        class_='live-today-member-name')
+            if len(names) == 0:
+                names = match_soup.find_all('div',
+                                        class_='live-member-name')
+                if len(names) == 0:
+                    return [['error', 'no match names class=live-[today-]member-name']]        
+                    logging.error('class of names of commands has changed')
+            teams = [names[0].get_text(), names[1].get_text()]
+            teams = ' vs '.join(teams)
+            current = match_soup.find('div',
+                                      class_='cl-left red').get_text().strip()
+            match_info = [teams, current]
+            all_matches_info.append(match_info)
+    return all_matches_info
+
+def update_match_timestamp_pickle(match_timestamp_dict):
+    for item in list(match_timestamp_dict):
+        if time.time() - match_timestamp_dict[item] > 6*60*60:
+            match_timestamp_dict.pop(item)
+    save_pickle(match_timestamp_dict, config.MATCH_TIMESTAMP_PICKLE)
+
+
 def marathon():
     link = get_link()
     total = get_total()
     match_timestamp_dict = get_match_timestamp()
-    all_matches_info = get_all_matches_info(get_html(link))
+    counter = 0
+    while counter < 10:
+        all_matches_info = get_all_matches_info(get_html(link))
+        print(all_matches_info[0])
+        if all_matches_info[0][0] != 'error':
+            break
+        else:
+            counter += 1
+            logging.info(
+                'trying to get all match info again counter = {}'.format(
+                    counter))
+            time.sleep(3)
+    if all_matches_info[0][0] == 'error':
+        if (all_matches_info[0][0], all_matches_info[0][1],) in match_timestamp_dict:
+            update_match_timestamp_pickle(match_timestamp_dict)
+            return None
+        else:
+            match_timestamp_dict[(all_matches_info[0][0], all_matches_info[0][1],)] = time.time()
+            update_match_timestamp_pickle(match_timestamp_dict)
+            return all_matches_info[0]
     matches_to_send = []
     for match_info in all_matches_info:
         match_title =  match_info[0]
         if match_title in match_timestamp_dict:
-            if time.time() - match_timestamp_dict[match_title] > 4*60*60:
-                match_timestamp_dict.pop(match_title)
             continue
         elif check_if_total_more(match_info, total):
             matches_to_send.append(match_info)
             match_timestamp_dict[match_info[0]] = time.time()
-    save_pickle(match_timestamp_dict, config.MATCH_TIMESTAMP_PICKLE)
+    update_match_timestamp_pickle(match_timestamp_dict)
     if len(matches_to_send) > 0:
         email_text = format_email_text(matches_to_send, total, link)
         email_subject = format_email_subject(total)

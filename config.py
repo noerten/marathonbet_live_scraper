@@ -18,7 +18,7 @@ TG_CHANNEL_NAME = private_config.TG_CHANNEL_NAME
 
 
 SINGLE_RUN = False
-DEFAULT_LINK = 'https://www.marathonbet.com/su/?sportLive=23690'
+DEFAULT_LINK = 'https://www.marathonbet.com/su/live/23690'
 DEFAULT_TOTAL = 45.5
 CUSTOM_LINK_PICKLE = 'custom_link.pickle'
 CUSTOM_TOTAL_PICKLE = 'custom_total.pickle'
